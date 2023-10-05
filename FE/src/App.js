@@ -1,63 +1,20 @@
 import "./App.css";
 import * as Ably from "ably/browser/static/ably-commonjs";
 import { useState } from "react";
+import { JWT_USERS } from "./constants";
 
 let ablyClient;
 let channel;
 
-const JWT_USERS = {
-  ADMIN: {
-    id: "63809",
-    type: "Admin",
-    ut: "staff",
-    roles: ["teacher", "admin", "reviewer", "dev_mode"],
-    oid: "1251",
-    region: "eu-west-1",
-    i_id: "100843",
-    v: "2",
-    iat: 1696482145,
-  },
-  STAFF: {
-    id: "36625309834946929",
-    type: "Staff",
-    ut: "staff",
-    roles: ["teacher"],
-    oid: "1251",
-    region: "eu-west-1",
-    iid: "36625309813979978",
-    i_id: "36625309813979978",
-    v: "2",
-    iat: 1696495610,
-  },
-  STUDENT: {
-    id: "27225404611765454",
-    type: "Student",
-    ut: "student",
-    roles: ["student"],
-    oid: "1251",
-    region: "eu-west-1",
-    v: "2",
-    iat: 1696494939,
-  },
-  PARENT: {
-    id: "36624262584346992",
-    type: "Parent",
-    ut: "parent",
-    roles: ["parent"],
-    oid: "1251",
-    region: "eu-west-1",
-    v: "2",
-    iat: 1696495280,
-  },
-};
-
 function App() {
   const [connectionEstablished, setConnectionEstablished] = useState(false);
   const [userName, setUserName] = useState("");
-  const [user, setUser] = useState("");
+  const [user, setUser] = useState(null);
   const [message, setMessage] = useState("");
   const [subscribed, setSubscribed] = useState(false);
   const [messages, setMessages] = useState([]);
+  const [presenceUser, setPresenceUser] = useState(null);
+  const [disable, setDisable] = useState(false);
 
   const printTokenDetails = () => {
     const tokenDetails = ablyClient.auth.tokenDetails;
@@ -74,6 +31,7 @@ function App() {
         issuedTime,
         expireTime,
         token,
+        presenceUser,
       });
     } else {
       setTimeout(printTokenDetails, 1000);
@@ -90,11 +48,10 @@ function App() {
         });
       }
 
-      console.log({ ablyClient });
       ablyClient.connection.once("connected", () => {
         console.log("connected");
         setConnectionEstablished(true);
-        setUser(user);
+        setUser(userData);
         channel = ablyClient.channels.get("ably-auth-token-chat");
         printTokenDetails();
       });
@@ -111,13 +68,28 @@ function App() {
     setUserName(e.target.value);
   };
 
+  const shouldDisable = (currentUser) => {
+    if (user && currentUser) {
+      return (
+        user.id !== currentUser.id ||
+        userName !== currentUser.name ||
+        user.type !== currentUser.type
+      );
+    }
+
+    return false;
+  };
+
   const subscribeChannel = () => {
-    console.log({ channel });
     if (channel) {
       setSubscribed(true);
       channel.subscribe((message) => {
         console.log("Received message: ", message);
         setMessages((messages) => [...messages, message.data]);
+      });
+      channel.presence.subscribe(["enter", "leave", "update"], (message) => {
+        console.log("Presence event received: ", message);
+        handlePresenceEvents(message);
       });
     }
   };
@@ -133,13 +105,36 @@ function App() {
     }
   };
 
+  const handlePresenceEvents = (presenceEvent) => {
+    const { action, data } = presenceEvent;
+    if (action === "enter") {
+      setPresenceUser(data);
+      setDisable(shouldDisable(data));
+    } else if (action === "leave") {
+      setPresenceUser(null);
+      setDisable(false);
+    }
+  };
+
+  const handlePresenceChange = (isPresent) => {
+    if (channel && subscribed && user) {
+      if (isPresent) {
+        channel.presence.enter({
+          id: user.id,
+          name: userName,
+          type: user.type,
+        });
+      } else {
+        channel.presence.leave();
+      }
+    }
+  };
+
   return (
     <div className="App">
       <header className="App-header">
         <div>
-          {connectionEstablished ? (
-            <span>Connection established as {user.Type}</span>
-          ) : (
+          {!connectionEstablished ? (
             <>
               <div>
                 <span>Enter your name: </span> &nbsp;
@@ -149,7 +144,6 @@ function App() {
                   onChange={handleUserNameChange}
                 />
               </div>
-              <br />
               <br />
               <div>
                 <span>Establish connection as: </span> &nbsp;
@@ -171,33 +165,62 @@ function App() {
                 &nbsp;
               </div>
             </>
-          )}
-          <br />
-          <br />
-          {subscribed ? (
-            <span>Subscribed to the channel</span>
           ) : (
-            <button onClick={() => subscribeChannel()}>
-              Subscribe to channel
-            </button>
+            <>
+              <span>
+                Connection established as{" "}
+                <strong>
+                  {userName}({user.type})
+                </strong>
+              </span>
+              <br />
+              <br />
+              {!subscribed ? (
+                <button onClick={() => subscribeChannel()}>
+                  Subscribe to channel
+                </button>
+              ) : (
+                <>
+                  <span>Subscribed to the channel</span>
+                  <br />
+                  <br />
+                  <input
+                    type="text"
+                    value={message}
+                    disabled={disable}
+                    onFocus={() => handlePresenceChange(true)}
+                    onBlur={() => handlePresenceChange(false)}
+                    onChange={handleInputChange}
+                  />{" "}
+                  &nbsp;
+                  <button disabled={disable} onClick={() => publishMessage()}>
+                    Publish Message
+                  </button>
+                  {disable && (
+                    <>
+                      <br />
+                      <span style={{ color: "yellow" }}>
+                        {" "}
+                        <strong>
+                          {presenceUser.name} - {presenceUser.id} (
+                          {presenceUser.type})
+                        </strong>{" "}
+                        is typing...{" "}
+                      </span>
+                    </>
+                  )}
+                  <br />
+                  <br />
+                  {messages.map((message, index) => (
+                    <div id={index}>
+                      <h4 style={{ display: "inline" }}>{message.user}</h4>{" "}
+                      &rarr; <span>{message.message}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </>
           )}
-          <br />
-          <br />
-          <input
-            type="text"
-            value={message}
-            onChange={handleInputChange}
-          />{" "}
-          &nbsp;
-          <button onClick={() => publishMessage()}>Publish Message</button>
-          <br />
-          <br />
-          {messages.map((message, index) => (
-            <div id={index}>
-              <h4 style={{ display: "inline" }}>{message.user}</h4> &rarr;{" "}
-              <span>{message.message}</span>
-            </div>
-          ))}
         </div>
       </header>
     </div>
