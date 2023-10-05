@@ -8,36 +8,32 @@ app.use(cors());
 let count = 1;
 
 const getTokenParams = (jwtUser) => {
-  const { id, ut, roles, oid } = jwtUser;
+  const { id: clientId, ut, roles, oid } = jwtUser;
+  // const channelName = `ably-auth-token-chat:${oid}`; // channelName:${oid}
+
   let capabilities = {};
   if (ut == "staff") {
     capabilities = _.includes(roles, "admin")
       ? {
-          [`channelName:${oid}`]: [
-            "publish",
-            "subscribe",
-            "presence",
-            "history",
-            "stats",
-          ],
+          [`*`]: ["publish", "subscribe", "presence", "history", "stats"],
         }
       : {
-          [`channelName:${oid}`]: ["publish", "subscribe", "presence"],
+          [`*`]: ["publish", "subscribe", "presence"],
         };
   } else if (ut == "student") {
     capabilities = {
-      [`channelName:${oid}`]: ["subscribe"],
+      [`*`]: ["subscribe"],
     };
   } else if (ut == "parent") {
     capabilities = {
-      [`channelName:${oid}`]: ["subscribe"],
+      [`*`]: ["subscribe"],
     };
   }
 
   const tokenParams = {
-    clientId: id,
-    ttl: 60000,
+    clientId,
     capability: capabilities,
+    ttl: 60000,
   };
 
   return tokenParams;
@@ -46,17 +42,16 @@ const getTokenParams = (jwtUser) => {
 app.get("/auth", async (req, res) => {
   console.log(`API called ${count++}`, new Date().toLocaleString());
 
-  const { jwtUser } = req.query;
-  const { id: clientId } = jwtUser;
+  const jwtUser = JSON.parse(req.query.jwtUser);
+  const { id: clientId = null } = jwtUser;
 
   if (_.isNull(clientId)) {
     res.status(500).send("Client ID not found!!!!");
   }
 
   const rest = new Ably.Rest({ key: "COLp9w.0CNo-Q:9wvmiPdAFHlTQKSO" });
-
   const tokenParams = getTokenParams(jwtUser);
-  console.log("tokenParams:: ", tokenParams);
+  // console.log("tokenParams:: ", tokenParams);
 
   await rest.auth.requestToken(tokenParams, (err, token) => {
     if (err) {

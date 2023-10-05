@@ -1,14 +1,14 @@
 import "./App.css";
 import * as Ably from "ably/browser/static/ably-commonjs";
 import { useState } from "react";
-import { _ } from "lodash";
 
 let ablyClient;
 let channel;
 
-const jwtUsers = {
-  admin: {
+const JWT_USERS = {
+  ADMIN: {
     id: "63809",
+    type: "Admin",
     ut: "staff",
     roles: ["teacher", "admin", "reviewer", "dev_mode"],
     oid: "1251",
@@ -17,8 +17,9 @@ const jwtUsers = {
     v: "2",
     iat: 1696482145,
   },
-  staff: {
+  STAFF: {
     id: "36625309834946929",
+    type: "Staff",
     ut: "staff",
     roles: ["teacher"],
     oid: "1251",
@@ -28,8 +29,9 @@ const jwtUsers = {
     v: "2",
     iat: 1696495610,
   },
-  student: {
+  STUDENT: {
     id: "27225404611765454",
+    type: "Student",
     ut: "student",
     roles: ["student"],
     oid: "1251",
@@ -37,8 +39,9 @@ const jwtUsers = {
     v: "2",
     iat: 1696494939,
   },
-  parent: {
+  PARENT: {
     id: "36624262584346992",
+    type: "Parent",
     ut: "parent",
     roles: ["parent"],
     oid: "1251",
@@ -50,14 +53,11 @@ const jwtUsers = {
 
 function App() {
   const [connectionEstablished, setConnectionEstablished] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [user, setUser] = useState("");
   const [message, setMessage] = useState("");
   const [subscribed, setSubscribed] = useState(false);
   const [messages, setMessages] = useState([]);
-
-  const userType = "admin"; // dynamic from front end
-  const jwtUser = _.isEmpty(_.trim(userType))
-    ? { id: null }
-    : jwtUsers[userType];
 
   const printTokenDetails = () => {
     const tokenDetails = ablyClient.auth.tokenDetails;
@@ -80,28 +80,35 @@ function App() {
     }
   };
 
-  const establishConnection = () => {
-    if (!ablyClient) {
-      console.log("Creating new connection");
-      ablyClient = new Ably.Realtime({
-        authUrl: "http://localhost:8080/auth",
-        authParams: { jwtUser },
+  const establishConnection = (userData) => {
+    if (userName) {
+      if (!ablyClient) {
+        console.log("Creating new connection");
+        ablyClient = new Ably.Realtime({
+          authUrl: "http://localhost:8080/auth",
+          authParams: { jwtUser: JSON.stringify(userData) },
+        });
+      }
+
+      console.log({ ablyClient });
+      ablyClient.connection.once("connected", () => {
+        console.log("connected");
+        setConnectionEstablished(true);
+        setUser(user);
+        channel = ablyClient.channels.get("ably-auth-token-chat");
+        printTokenDetails();
       });
+
+      setInterval(printTokenDetails, 60000);
     }
-
-    console.log({ ablyClient });
-    ablyClient.connection.once("connected", () => {
-      console.log("connected");
-      setConnectionEstablished(true);
-      channel = ablyClient.channels.get("ably-auth-token-chat");
-      printTokenDetails();
-    });
-
-    setInterval(printTokenDetails, 60000);
   };
 
   const handleInputChange = (e) => {
     setMessage(e.target.value);
+  };
+
+  const handleUserNameChange = (e) => {
+    setUserName(e.target.value);
   };
 
   const subscribeChannel = () => {
@@ -117,7 +124,7 @@ function App() {
 
   const publishMessage = () => {
     if (message && channel) {
-      const data = { user: jwtUser.id, message };
+      const data = { user: userName, message };
       channel.publish("message", data, (err) => {
         alert("Unable to publish message; err = " + err.message);
         console.error("Unable to publish message; err = " + err.message);
@@ -131,11 +138,39 @@ function App() {
       <header className="App-header">
         <div>
           {connectionEstablished ? (
-            <span>Connection established</span>
+            <span>Connection established as {user.Type}</span>
           ) : (
-            <button onClick={() => establishConnection()}>
-              Establish connection
-            </button>
+            <>
+              <div>
+                <span>Enter your name: </span> &nbsp;
+                <input
+                  type="text"
+                  value={userName}
+                  onChange={handleUserNameChange}
+                />
+              </div>
+              <br />
+              <br />
+              <div>
+                <span>Establish connection as: </span> &nbsp;
+                <button onClick={() => establishConnection(JWT_USERS.ADMIN)}>
+                  Admin
+                </button>{" "}
+                &nbsp;
+                <button onClick={() => establishConnection(JWT_USERS.STAFF)}>
+                  Staff
+                </button>{" "}
+                &nbsp;
+                <button onClick={() => establishConnection(JWT_USERS.STUDENT)}>
+                  Student
+                </button>{" "}
+                &nbsp;
+                <button onClick={() => establishConnection(JWT_USERS.PARENT)}>
+                  Parent
+                </button>{" "}
+                &nbsp;
+              </div>
+            </>
           )}
           <br />
           <br />
