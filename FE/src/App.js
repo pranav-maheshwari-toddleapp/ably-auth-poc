@@ -15,6 +15,7 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [presenceUser, setPresenceUser] = useState(null);
   const [disable, setDisable] = useState(false);
+  const [canPublish, setCanPublish] = useState(false);
 
   const printTokenDetails = () => {
     const tokenDetails = ablyClient.auth.tokenDetails;
@@ -31,11 +32,19 @@ function App() {
         issuedTime,
         expireTime,
         token,
-        presenceUser,
       });
     } else {
       setTimeout(printTokenDetails, 1000);
     }
+  };
+
+  const getCapabilities = () => {
+    const tokenDetails = ablyClient.auth.tokenDetails;
+    if (tokenDetails) {
+      const capabilities = JSON.parse(tokenDetails.capability);
+      return capabilities["*"];
+    }
+    return [];
   };
 
   const establishConnection = (userData) => {
@@ -52,6 +61,7 @@ function App() {
         console.log("connected");
         setConnectionEstablished(true);
         setUser(userData);
+        setCanPublish(getCapabilities(userData).includes("publish"));
         channel = ablyClient.channels.get("ably-auth-token-chat");
         printTokenDetails();
       });
@@ -87,10 +97,12 @@ function App() {
         console.log("Received message: ", message);
         setMessages((messages) => [...messages, message.data]);
       });
-      channel.presence.subscribe(["enter", "leave", "update"], (message) => {
-        console.log("Presence event received: ", message);
-        handlePresenceEvents(message);
-      });
+      if (canPublish) {
+        channel.presence.subscribe(["enter", "leave"], (message) => {
+          console.log("Presence event received: ", message);
+          handlePresenceEvents(message);
+        });
+      }
     }
   };
 
@@ -184,33 +196,40 @@ function App() {
                   <span>Subscribed to the channel</span>
                   <br />
                   <br />
-                  <input
-                    type="text"
-                    value={message}
-                    disabled={disable}
-                    onFocus={() => handlePresenceChange(true)}
-                    onBlur={() => handlePresenceChange(false)}
-                    onChange={handleInputChange}
-                  />{" "}
-                  &nbsp;
-                  <button disabled={disable} onClick={() => publishMessage()}>
-                    Publish Message
-                  </button>
-                  {disable && (
+                  {canPublish && (
                     <>
+                      <input
+                        type="text"
+                        value={message}
+                        disabled={disable}
+                        onFocus={() => handlePresenceChange(true)}
+                        onBlur={() => handlePresenceChange(false)}
+                        onChange={handleInputChange}
+                      />{" "}
+                      &nbsp;
+                      <button
+                        disabled={disable}
+                        onClick={() => publishMessage()}
+                      >
+                        Publish Message
+                      </button>
+                      {disable && (
+                        <>
+                          <br />
+                          <span style={{ color: "yellow" }}>
+                            {" "}
+                            <strong>
+                              {presenceUser.name} - {presenceUser.id} (
+                              {presenceUser.type})
+                            </strong>{" "}
+                            is typing...{" "}
+                          </span>
+                        </>
+                      )}
                       <br />
-                      <span style={{ color: "yellow" }}>
-                        {" "}
-                        <strong>
-                          {presenceUser.name} - {presenceUser.id} (
-                          {presenceUser.type})
-                        </strong>{" "}
-                        is typing...{" "}
-                      </span>
+                      <br />
                     </>
                   )}
-                  <br />
-                  <br />
                   {messages.map((message, index) => (
                     <div id={index}>
                       <h4 style={{ display: "inline" }}>{message.user}</h4>{" "}
