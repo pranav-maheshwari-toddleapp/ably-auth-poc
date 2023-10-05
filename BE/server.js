@@ -11,9 +11,19 @@ const getTokenParams = (jwtUser) => {
   const { id, ut, roles, oid } = jwtUser;
   let capabilities = {};
   if (ut == "staff") {
-    capabilities = {
-      [`channelName:${oid}`]: ["publish", "subscribe", "presence"],
-    };
+    capabilities = _.includes(roles, "admin")
+      ? {
+          [`channelName:${oid}`]: [
+            "publish",
+            "subscribe",
+            "presence",
+            "history",
+            "stats",
+          ],
+        }
+      : {
+          [`channelName:${oid}`]: ["publish", "subscribe", "presence"],
+        };
   } else if (ut == "student") {
     capabilities = {
       [`channelName:${oid}`]: ["subscribe"],
@@ -37,7 +47,7 @@ app.get("/auth", async (req, res) => {
   console.log(`API called ${count++}`, new Date().toLocaleString());
 
   const { jwtUser } = req.query;
-  const { id: clientId = null } = jwtUser;
+  const { id: clientId } = jwtUser;
 
   if (_.isNull(clientId)) {
     res.status(500).send("Client ID not found!!!!");
