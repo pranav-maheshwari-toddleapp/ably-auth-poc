@@ -1,0 +1,20 @@
+{
+  "name": "Ably-authentication",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "dependencies": {
+    "concurrently": "^8.2.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "start-be": "npm start --prefix BE",
+    "start-fe": "npm start --prefix FE",
+    "install-fe": "npm install --prefix FE",
+    "install-be": "npm install --prefix BE",
+    "dev": "concurrently \"npm run start-be\" \"npm run start-fe\"",
+    "install-all": "concurrently \"npm run install-fe\" \"npm run install-be\""
+  },
+  "author": "Pranav Maheshwari",
+  "license": "ISC"
+}

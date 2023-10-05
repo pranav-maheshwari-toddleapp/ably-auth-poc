@@ -1,5 +1,5 @@
 import "./App.css";
-import * as Ably from "ably/browser/static/ably-commonjs.js";
+import * as Ably from "ably/browser/static/ably-commonjs";
 
 const USER_ID = "17740098669908281";
 
