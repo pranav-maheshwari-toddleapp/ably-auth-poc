@@ -53,7 +53,7 @@ function App() {
         console.log("Creating new connection");
         ablyClient = new Ably.Realtime({
           authUrl: "http://localhost:8080/auth",
-          authParams: { jwtUser: JSON.stringify(userData) },
+          authHeaders: { jwtUser: JSON.stringify(userData) },
         });
       }
 

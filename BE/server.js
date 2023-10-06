@@ -42,7 +42,7 @@ const getTokenParams = (jwtUser) => {
 app.get("/auth", async (req, res) => {
   console.log(`API called ${count++}`, new Date().toLocaleString());
 
-  const jwtUser = JSON.parse(req.query.jwtUser);
+  const jwtUser = JSON.parse(req.headers.jwtuser);
   const { id: clientId = null } = jwtUser;
 
   if (_.isNull(clientId)) {
